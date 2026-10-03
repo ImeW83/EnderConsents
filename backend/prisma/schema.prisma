@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ORGANIZATION & ACCESS CONTROL
+// ============================================================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free") // free | starter | pro | enterprise
+  status    String   @default("active") // active | suspended | cancelled
+  createdAt DateTime @default(now())
+
+  users      User[]
+  roles      Role[]
+  subjects   Subject[]
+  purposes   Purpose[]
+  notices    NoticeVersion[]
+  apiKeys    ApiKey[]
+  webhooks   Webhook[]
+  auditRecords AuditRecord[]
+  consentStates ConsentState[]
+}
+
+model User {
+  id             String    @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  email          String
+  passwordHash   String
+  roleId         String?
+  role           Role?     @relation(fields: [roleId], references: [id])
+  mfaEnabled     Boolean   @default(false)
+  mfaSecret      String?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, email])
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String   // e.g. "admin", "dpo", "viewer"
+  permissions    String[] // e.g. ["consent:read", "consent:write", "purpose:manage"]
+
+  users User[]
+
+  @@unique([organizationId, name])
+}
+
+// ============================================================
+// SUBJECT (the end customer / data subject)
+// ============================================================
+
+model Subject {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  externalRef    String?
+  email          String?
+  phone          String?
+  locale         String   @default("en")
+  createdAt      DateTime @default(now())
+
+  consentStates ConsentState[]
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+// ============================================================
+// PURPOSE & VERSIONING
+// ============================================================
+
+model Purpose {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  key            String
+  name           String
+  description    String
+  category       String?
+  isActive       Boolean  @default(true)
+
+  versions      PurposeVersion[]
+  consentStates ConsentState[]
+
+  @@unique([organizationId, key])
+}
+
+model PurposeVersion {
+  id            String   @id @default(uuid())
+  purposeId     String
+  purpose       Purpose  @relation(fields: [purposeId], references: [id])
+  version       Int
+  name          String
+  description   String
+  legalBasis    String?
+  effectiveFrom DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  consentStates ConsentState[]
+
+  @@unique([purposeId, version])
+}
+
+// ============================================================
+// PRIVACY NOTICE VERSIONING
+// ============================================================
+
+model NoticeVersion {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  version        Int
+  language       String   @default("en")
+  content        String
+  effectiveFrom  DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  consentStates ConsentState[]
+
+  @@unique([organizationId, version, language])
+}
+
+// ============================================================
+// CONSENT CORE — STATE (snapshot) + EVENT (immutable history)
+// ============================================================
+
+model ConsentState {
+  id               String   @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  subjectId        String
+  subject          Subject  @relation(fields: [subjectId], references: [id])
+  purposeId        String
+  purpose          Purpose  @relation(fields: [purposeId], references: [id])
+  purposeVersionId String?
+  purposeVersion   PurposeVersion? @relation(fields: [purposeVersionId], references: [id])
+  noticeVersionId  String?
+  noticeVersion    NoticeVersion? @relation(fields: [noticeVersionId], references: [id])
+  status           String
+  updatedAt        DateTime @updatedAt
+
+  events ConsentEvent[]
+
+  @@unique([subjectId, purposeId])
+  @@index([organizationId, status])
+}
+
+model ConsentEvent {
+  id             String   @id @default(uuid())
+  consentStateId String
+  consentState   ConsentState @relation(fields: [consentStateId], references: [id])
+  action         String
+  actorType      String
+  actorId        String?
+  channel        String
+  ipAddress      String?
+  userAgent      String?
+  timestamp      DateTime @default(now())
+
+  receipt ConsentReceipt?
+
+  @@index([consentStateId, timestamp])
+}
+
+model ConsentReceipt {
+  id             String   @id @default(uuid())
+  consentEventId String   @unique
+  consentEvent   ConsentEvent @relation(fields: [consentEventId], references: [id])
+  receiptHash    String
+  payload        Json
+  issuedAt       DateTime @default(now())
+}
+
+// ============================================================
+// AUDIT
+// ============================================================
+
+model AuditRecord {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  actorType      String
+  actorId        String?
+  action         String
+  entityType     String
+  entityId       String
+  details        String?
+  timestamp      DateTime @default(now())
+
+  @@index([organizationId, timestamp])
+}
+
+// ============================================================
+// API ACCESS & INTEGRATIONS
+// ============================================================
+
+model ApiKey {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  hashedKey      String   @unique
+  scopes         String[]
+  createdAt      DateTime @default(now())
+  revokedAt      DateTime?
+}
+
+model Webhook {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  url            String
+  events         String[]
+  secret         String
+  isActive       Boolean  @default(true)
+}

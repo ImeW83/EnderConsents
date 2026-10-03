@@ -2,15 +2,16 @@ import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { RolesService } from '../roles/roles.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private rolesService: RolesService,
   ) {}
 
-  // Register a new Organization + its first admin User
   async signupOrganization(orgName: string, slug: string, email: string, password: string) {
     const existingOrg = await this.prisma.organization.findUnique({ where: { slug } });
     if (existingOrg) {
@@ -35,18 +36,25 @@ export class AuthService {
 
     const user = organization.users[0];
 
+    // Create the default Owner role with full permissions, then assign it to the first user
+    const ownerRole = await this.rolesService.createOwnerRole(organization.id);
+    await this.rolesService.assignRoleToUser(user.id, ownerRole.id);
+
     const token = this.jwtService.sign({
       userId: user.id,
       organizationId: organization.id,
       email: user.email,
+      roleId: ownerRole.id,
     });
 
-    return { token, organizationId: organization.id, userId: user.id };
+    return { token, organizationId: organization.id, userId: user.id, role: ownerRole.name };
   }
 
-  // Log in an existing user
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findFirst({ where: { email } });
+    const user = await this.prisma.user.findFirst({
+      where: { email },
+      include: { role: true },
+    });
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -61,8 +69,14 @@ export class AuthService {
       userId: user.id,
       organizationId: user.organizationId,
       email: user.email,
+      roleId: user.roleId,
     });
 
-    return { token, organizationId: user.organizationId, userId: user.id };
+    return {
+      token,
+      organizationId: user.organizationId,
+      userId: user.id,
+      role: user.role?.name || null,
+    };
   }
 }

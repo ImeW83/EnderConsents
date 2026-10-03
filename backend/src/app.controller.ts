@@ -1,6 +1,8 @@
 import { Controller, Get, UseGuards, Request } from '@nestjs/common';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from './auth/guards/permissions.guard';
+import { RequirePermissions } from './auth/decorators/permissions.decorator';
 
 @Controller()
 export class AppController {
@@ -14,7 +16,13 @@ export class AppController {
   @Get('api/v1/me')
   @UseGuards(JwtAuthGuard)
   getProfile(@Request() req: any) {
-    // req.user comes from the JWT payload — this proves the guard + strategy work end-to-end
     return req.user;
+  }
+
+  @Get('api/v1/admin-only')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('organization:manage')
+  adminOnlyRoute(@Request() req: any) {
+    return { message: 'You have organization:manage permission', user: req.user };
   }
 }

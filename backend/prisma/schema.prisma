@@ -72,9 +72,23 @@ model Subject {
   createdAt      DateTime @default(now())
 
   consentStates ConsentState[]
+  identifiers   SubjectIdentifier[]
 
   @@index([organizationId, email])
   @@index([organizationId, phone])
+}
+
+model SubjectIdentifier {
+  id           String   @id @default(uuid())
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  type         String   // email | phone | external_ref | device_id
+  valueHash    String   // hashed value, used for lookup
+  valuePlain   String?  // plain value, nullable — omit for highly sensitive identifiers if required
+  createdAt    DateTime @default(now())
+
+  @@unique([type, valueHash])
+  @@index([subjectId])
 }
 
 // ============================================================
@@ -109,6 +123,7 @@ model PurposeVersion {
   createdAt     DateTime @default(now())
 
   consentStates ConsentState[]
+  consentEvents ConsentEvent[]
 
   @@unique([purposeId, version])
 }
@@ -128,6 +143,7 @@ model NoticeVersion {
   createdAt      DateTime @default(now())
 
   consentStates ConsentState[]
+  consentEvents ConsentEvent[]
 
   @@unique([organizationId, version, language])
 }
@@ -149,6 +165,7 @@ model ConsentState {
   noticeVersionId  String?
   noticeVersion    NoticeVersion? @relation(fields: [noticeVersionId], references: [id])
   status           String
+  expiresAt        DateTime?
   updatedAt        DateTime @updatedAt
 
   events ConsentEvent[]
@@ -158,16 +175,22 @@ model ConsentState {
 }
 
 model ConsentEvent {
-  id             String   @id @default(uuid())
-  consentStateId String
-  consentState   ConsentState @relation(fields: [consentStateId], references: [id])
-  action         String
-  actorType      String
-  actorId        String?
-  channel        String
-  ipAddress      String?
-  userAgent      String?
-  timestamp      DateTime @default(now())
+  id                 String   @id @default(uuid())
+  consentStateId     String
+  consentState       ConsentState @relation(fields: [consentStateId], references: [id])
+  action             String
+  actorType          String
+  actorId            String?
+  channel            String
+  ipAddress          String?
+  userAgent          String?
+  purposeVersionId   String?
+  purposeVersion     PurposeVersion? @relation(fields: [purposeVersionId], references: [id])
+  noticeVersionId    String?
+  noticeVersion      NoticeVersion? @relation(fields: [noticeVersionId], references: [id])
+  previousEventHash  String?
+  eventHash          String
+  timestamp          DateTime @default(now())
 
   receipt ConsentReceipt?
 

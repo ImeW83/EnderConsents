@@ -39,7 +39,12 @@ Role (RBAC)
 id, organizationId, name, permissions[]
 
 Subject (the end customer / data subject)
-id, organizationId, externalRef, email, phone, locale, createdAt
+  id, organizationId, externalRef, email, phone, locale, createdAt
+
+SubjectIdentifier (links a subject to multiple identifiers, hashed for lookup)
+  id, subjectId, type (email|phone|external_ref|device_id),
+  valueHash, valuePlain, createdAt
+  [unique: type + valueHash]
 
 Purpose
 id, organizationId, key, name, description, category, isActive
@@ -51,14 +56,17 @@ NoticeVersion (Privacy Notice / Terms)
 id, organizationId, version, language, content, effectiveFrom, createdAt
 
 ConsentState (current snapshot — one row per subject+purpose)
-id, organizationId, subjectId, purposeId, status, purposeVersionId,
-noticeVersionId, lastEventId, updatedAt
-[unique: subjectId + purposeId]
+  id, organizationId, subjectId, purposeId, status, expiresAt,
+  purposeVersionId, noticeVersionId, updatedAt
+  [unique: subjectId + purposeId]
 
 ConsentEvent (immutable — the actual history)
-id, consentStateId, action (granted|withdrawn|renewed|expired),
-actorType (subject|admin|system), actorId, channel (web|mobile|qr|api|import),
-ipAddress, userAgent, timestamp
+  id, consentStateId, action (granted|withdrawn|renewed|expired),
+  actorType (subject|admin|system), actorId, channel (web|mobile|qr|api|import),
+  ipAddress, userAgent, purposeVersionId, noticeVersionId,
+  previousEventHash, eventHash, timestamp
+  — each event snapshots the exact purpose/notice version agreed to, and
+    chains to the previous event's hash for tamper-evidence
 
 ConsentReceipt (cryptographic proof, generated per event)
 id, consentEventId, receiptHash, payload (JSON snapshot), issuedAt

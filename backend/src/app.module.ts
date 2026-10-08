@@ -8,6 +8,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { PurposesModule } from './purposes/purposes.module';
 import { PurposeVersionsModule } from './purpose-versions/purpose-versions.module';
+import { NoticesModule } from './notices/notices.module';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 
 @Module({
@@ -19,6 +20,7 @@ import { PermissionsGuard } from './auth/guards/permissions.guard';
     SubjectsModule,
     PurposesModule,
     PurposeVersionsModule,
+    NoticesModule,
   ],
   controllers: [AppController],
   providers: [AppService, PermissionsGuard],

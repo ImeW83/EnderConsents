@@ -6,10 +6,18 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RolesModule } from './roles/roles.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { SubjectsModule } from './subjects/subjects.module';
+import { PurposesModule } from './purposes/purposes.module';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RolesModule, OrganizationsModule, SubjectsModule],
+  imports: [
+    AuthModule,
+    PrismaModule,
+    RolesModule,
+    OrganizationsModule,
+    SubjectsModule,
+    PurposesModule,
+  ],
   controllers: [AppController],
   providers: [AppService, PermissionsGuard],
 })

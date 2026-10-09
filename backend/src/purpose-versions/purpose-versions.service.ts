@@ -45,6 +45,15 @@ export class PurposeVersionsService {
     });
   }
 
+  async findLatest(organizationId: string, purposeId: string) {
+    await this.purposesService.findOne(organizationId, purposeId);
+
+    return this.prisma.purposeVersion.findFirst({
+      where: { purposeId },
+      orderBy: { version: 'desc' },
+    });
+  }
+
   async findOne(organizationId: string, purposeId: string, id: string) {
     await this.purposesService.findOne(organizationId, purposeId);
 

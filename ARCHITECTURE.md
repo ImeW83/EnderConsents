@@ -168,18 +168,24 @@ Core endpoint groups:
 ## 7. Build Order
 
 **Phase 1 — Foundation (solo build)**
-1. Repository + architecture ✅ (this document)
-2. Database architecture
-3. Multi-tenancy
-4. Authentication
-5. RBAC
-6. Organization management
-7. Subject/identity management
-8. Purpose management
-9. Purpose versioning
-10. Privacy notice versioning
-11. Consent state machine
-12. Consent events
+1. ✅ Repository + architecture (this document)
+2. ✅ Database architecture
+3. ✅ Multi-tenancy
+4. ✅ Authentication
+5. ✅ RBAC
+6. ✅ Organization management
+7. ✅ Subject/identity management
+8. ✅ Purpose management
+9. ✅ Purpose versioning
+10. ✅ Privacy notice versioning
+11. ✅ Consent state machine (merged with Step 12 — event creation is
+    built into every grant/withdraw/renew transaction, not separate)
+12. ✅ Consent events — done as part of Step 11. Known gaps, not yet built:
+    - No subject-facing grant/withdraw endpoint — every current action is
+      actorType "admin" (an org user acting on someone's behalf); a public,
+      subject-authenticated path is still needed
+    - ipAddress / userAgent fields exist on ConsentEvent but aren't
+      populated yet — needs wiring from the request in a future pass
 13. Immutable audit system
 
 **Phase 2 — Product (bring in help here)**
@@ -212,3 +218,4 @@ Core endpoint groups:
 English / Sinhala / Tamil · QR-based consent · offline/tablet collection · branch-based orgs · local SMS integrations · PDPA-aligned reporting
 
 Built internationally from day one — Sri Lanka is the beachhead market, not a technical ceiling.
+

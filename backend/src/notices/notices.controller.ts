@@ -1,8 +1,18 @@
-import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { NoticesService } from './notices.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { actorFrom } from '../audit/actor';
 
 @Controller('api/v1/notices')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -17,11 +27,15 @@ export class NoticesController {
     @Body('content') content: string,
     @Body('effectiveFrom') effectiveFrom: string,
   ) {
-    return this.noticesService.create(req.user.organizationId, {
-      language,
-      content,
-      effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
-    });
+    return this.noticesService.create(
+      req.user.organizationId,
+      {
+        language,
+        content,
+        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
+      },
+      actorFrom(req),
+    );
   }
 
   @Get()
@@ -34,7 +48,10 @@ export class NoticesController {
   @Get('current')
   @RequirePermissions('notice:manage')
   async findCurrent(@Request() req: any, @Query('language') language: string) {
-    return this.noticesService.findCurrent(req.user.organizationId, language || 'en');
+    return this.noticesService.findCurrent(
+      req.user.organizationId,
+      language || 'en',
+    );
   }
 
   @Get(':id')

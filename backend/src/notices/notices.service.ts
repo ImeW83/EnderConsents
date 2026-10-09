@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { Actor, SYSTEM_ACTOR } from '../audit/actor';
 
 export interface CreateNoticeInput {
   language?: string;
@@ -9,9 +11,16 @@ export interface CreateNoticeInput {
 
 @Injectable()
 export class NoticesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
-  async create(organizationId: string, data: CreateNoticeInput) {
+  async create(
+    organizationId: string,
+    data: CreateNoticeInput,
+    actor: Actor = SYSTEM_ACTOR,
+  ) {
     const language = data.language ?? 'en';
 
     const latest = await this.prisma.noticeVersion.findFirst({
@@ -19,14 +28,28 @@ export class NoticesService {
       orderBy: { version: 'desc' },
     });
 
-    return this.prisma.noticeVersion.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const notice = await tx.noticeVersion.create({
+        data: {
+          organizationId,
+          language,
+          version: (latest?.version ?? 0) + 1,
+          content: data.content,
+          effectiveFrom: data.effectiveFrom,
+        },
+      });
+
+      await this.auditService.record(
         organizationId,
-        language,
-        version: (latest?.version ?? 0) + 1,
-        content: data.content,
-        effectiveFrom: data.effectiveFrom,
-      },
+        actor,
+        'created',
+        'NoticeVersion',
+        notice.id,
+        JSON.stringify({ language, version: notice.version }),
+        tx,
+      );
+
+      return notice;
     });
   }
 
@@ -44,7 +67,9 @@ export class NoticesService {
     });
 
     if (!notice) {
-      throw new NotFoundException(`No current notice for language "${language}"`);
+      throw new NotFoundException(
+        `No current notice for language "${language}"`,
+      );
     }
 
     return notice;

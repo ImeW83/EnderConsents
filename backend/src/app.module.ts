@@ -10,6 +10,7 @@ import { PurposesModule } from './purposes/purposes.module';
 import { PurposeVersionsModule } from './purpose-versions/purpose-versions.module';
 import { NoticesModule } from './notices/notices.module';
 import { ConsentModule } from './consent/consent.module';
+import { AuditModule } from './audit/audit.module';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 
 @Module({
@@ -23,6 +24,7 @@ import { PermissionsGuard } from './auth/guards/permissions.guard';
     PurposeVersionsModule,
     NoticesModule,
     ConsentModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService, PermissionsGuard],

@@ -1,5 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { Actor, SYSTEM_ACTOR } from '../audit/actor';
 
 export interface CreatePurposeInput {
   key: string;
@@ -19,20 +25,41 @@ export interface UpdatePurposeInput {
 
 @Injectable()
 export class PurposesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
-  async create(organizationId: string, data: CreatePurposeInput) {
+  async create(
+    organizationId: string,
+    data: CreatePurposeInput,
+    actor: Actor = SYSTEM_ACTOR,
+  ) {
     await this.assertKeyAvailable(organizationId, data.key);
 
-    return this.prisma.purpose.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const purpose = await tx.purpose.create({
+        data: {
+          organizationId,
+          key: data.key,
+          name: data.name,
+          description: data.description,
+          category: data.category,
+          isActive: data.isActive,
+        },
+      });
+
+      await this.auditService.record(
         organizationId,
-        key: data.key,
-        name: data.name,
-        description: data.description,
-        category: data.category,
-        isActive: data.isActive,
-      },
+        actor,
+        'created',
+        'Purpose',
+        purpose.id,
+        JSON.stringify({ key: purpose.key, name: purpose.name }),
+        tx,
+      );
+
+      return purpose;
     });
   }
 
@@ -52,23 +79,60 @@ export class PurposesService {
     return purpose;
   }
 
-  async update(organizationId: string, id: string, data: UpdatePurposeInput) {
+  async update(
+    organizationId: string,
+    id: string,
+    data: UpdatePurposeInput,
+    actor: Actor = SYSTEM_ACTOR,
+  ) {
     const existing = await this.findOne(organizationId, id);
 
     if (data.key !== undefined && data.key !== existing.key) {
       await this.assertKeyAvailable(organizationId, data.key);
     }
 
-    return this.prisma.purpose.update({
-      where: { id },
-      data,
+    return this.prisma.$transaction(async (tx) => {
+      const purpose = await tx.purpose.update({
+        where: { id },
+        data,
+      });
+
+      await this.auditService.record(
+        organizationId,
+        actor,
+        'updated',
+        'Purpose',
+        id,
+        JSON.stringify(data),
+        tx,
+      );
+
+      return purpose;
     });
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.findOne(organizationId, id);
+  async remove(
+    organizationId: string,
+    id: string,
+    actor: Actor = SYSTEM_ACTOR,
+  ) {
+    const existing = await this.findOne(organizationId, id);
 
-    return this.prisma.purpose.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      const purpose = await tx.purpose.delete({ where: { id } });
+
+      await this.auditService.record(
+        organizationId,
+        actor,
+        'removed',
+        'Purpose',
+        id,
+        JSON.stringify({ key: existing.key, name: existing.name }),
+        tx,
+      );
+
+      return purpose;
+    });
   }
 
   private async assertKeyAvailable(organizationId: string, key: string) {

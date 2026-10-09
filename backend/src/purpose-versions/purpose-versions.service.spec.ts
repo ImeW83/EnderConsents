@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PurposeVersionsService } from './purpose-versions.service';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurposesService } from '../purposes/purposes.service';
 
@@ -10,6 +11,7 @@ describe('PurposeVersionsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PurposeVersionsService,
+        { provide: AuditService, useValue: { record: jest.fn() } },
         {
           provide: PrismaService,
           useValue: {

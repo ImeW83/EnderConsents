@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConsentService } from './consent.service';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubjectsService } from '../subjects/subjects.service';
 import { PurposesService } from '../purposes/purposes.service';
@@ -13,11 +14,21 @@ describe('ConsentService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ConsentService,
-        { provide: PrismaService, useValue: { $transaction: jest.fn(), consentState: {} } },
+        { provide: AuditService, useValue: { record: jest.fn() } },
+        {
+          provide: PrismaService,
+          useValue: { $transaction: jest.fn(), consentState: {} },
+        },
         { provide: SubjectsService, useValue: { findOne: jest.fn() } },
         { provide: PurposesService, useValue: { findOne: jest.fn() } },
-        { provide: PurposeVersionsService, useValue: { findOne: jest.fn(), findLatest: jest.fn() } },
-        { provide: NoticesService, useValue: { findOne: jest.fn(), findCurrent: jest.fn() } },
+        {
+          provide: PurposeVersionsService,
+          useValue: { findOne: jest.fn(), findLatest: jest.fn() },
+        },
+        {
+          provide: NoticesService,
+          useValue: { findOne: jest.fn(), findCurrent: jest.fn() },
+        },
       ],
     }).compile();
 

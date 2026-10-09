@@ -10,12 +10,9 @@ import { SubjectsService } from '../subjects/subjects.service';
 import { PurposesService } from '../purposes/purposes.service';
 import { PurposeVersionsService } from '../purpose-versions/purpose-versions.service';
 import { NoticesService } from '../notices/notices.service';
+import { AuditService } from '../audit/audit.service';
+import { Actor } from '../audit/actor';
 import { computeEventHash } from './event-hash';
-
-export interface Actor {
-  actorType: string;
-  actorId: string | null;
-}
 
 export interface GrantConsentInput {
   subjectId: string;
@@ -46,6 +43,7 @@ export class ConsentService {
     private purposesService: PurposesService,
     private purposeVersionsService: PurposeVersionsService,
     private noticesService: NoticesService,
+    private auditService: AuditService,
   ) {}
 
   async grant(organizationId: string, actor: Actor, input: GrantConsentInput) {
@@ -71,7 +69,10 @@ export class ConsentService {
       // events for it so the hash chain cannot fork
       const state = await tx.consentState.upsert({
         where: {
-          subjectId_purposeId: { subjectId: input.subjectId, purposeId: input.purposeId },
+          subjectId_purposeId: {
+            subjectId: input.subjectId,
+            purposeId: input.purposeId,
+          },
         },
         create: {
           organizationId,
@@ -98,6 +99,23 @@ export class ConsentService {
         purposeVersionId,
         noticeVersionId,
       });
+
+      await this.auditService.record(
+        organizationId,
+        actor,
+        'consent_granted',
+        'ConsentState',
+        state.id,
+        JSON.stringify({
+          eventId: event.id,
+          subjectId: input.subjectId,
+          purposeId: input.purposeId,
+          channel: input.channel,
+          purposeVersionId,
+          noticeVersionId,
+        }),
+        tx,
+      );
 
       return { state, event };
     });
@@ -131,6 +149,16 @@ export class ConsentService {
         purposeVersionId: current.purposeVersionId,
         noticeVersionId: current.noticeVersionId,
       });
+
+      await this.auditService.record(
+        organizationId,
+        actor,
+        'consent_withdrawn',
+        'ConsentState',
+        consentStateId,
+        JSON.stringify({ eventId: event.id, channel: input.channel }),
+        tx,
+      );
 
       return { state, event };
     });
@@ -168,6 +196,20 @@ export class ConsentService {
         noticeVersionId: current.noticeVersionId,
       });
 
+      await this.auditService.record(
+        organizationId,
+        actor,
+        'consent_renewed',
+        'ConsentState',
+        consentStateId,
+        JSON.stringify({
+          eventId: event.id,
+          channel: input.channel,
+          expiresAt: state.expiresAt?.toISOString() ?? null,
+        }),
+        tx,
+      );
+
       return { state, event };
     });
   }
@@ -198,10 +240,16 @@ export class ConsentService {
     return state;
   }
 
-  private async lockState(tx: Prisma.TransactionClient, organizationId: string, id: string) {
+  private async lockState(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    id: string,
+  ) {
     await tx.$queryRaw`SELECT id FROM "ConsentState" WHERE id = ${id} AND "organizationId" = ${organizationId} FOR UPDATE`;
 
-    const state = await tx.consentState.findFirst({ where: { id, organizationId } });
+    const state = await tx.consentState.findFirst({
+      where: { id, organizationId },
+    });
 
     if (!state) {
       throw new NotFoundException('Consent state not found');
@@ -272,7 +320,10 @@ export class ConsentService {
       return version.id;
     }
 
-    const latest = await this.purposeVersionsService.findLatest(organizationId, purposeId);
+    const latest = await this.purposeVersionsService.findLatest(
+      organizationId,
+      purposeId,
+    );
     return latest?.id ?? null;
   }
 
@@ -282,12 +333,18 @@ export class ConsentService {
     language: string,
   ): Promise<string | null> {
     if (suppliedId) {
-      const notice = await this.noticesService.findOne(organizationId, suppliedId);
+      const notice = await this.noticesService.findOne(
+        organizationId,
+        suppliedId,
+      );
       return notice.id;
     }
 
     try {
-      const current = await this.noticesService.findCurrent(organizationId, language);
+      const current = await this.noticesService.findCurrent(
+        organizationId,
+        language,
+      );
       return current.id;
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -300,7 +357,9 @@ export class ConsentService {
   private requireFields<T extends object>(input: T, fields: (keyof T)[]) {
     const missing = fields.filter((field) => !input[field]);
     if (missing.length > 0) {
-      throw new BadRequestException(`Missing required field(s): ${missing.join(', ')}`);
+      throw new BadRequestException(
+        `Missing required field(s): ${missing.join(', ')}`,
+      );
     }
   }
 

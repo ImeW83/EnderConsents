@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { ConsentService } from './consent.service';
 import { ConsentController } from './consent.controller';
 import { SubjectsModule } from '../subjects/subjects.module';
@@ -7,7 +8,13 @@ import { PurposeVersionsModule } from '../purpose-versions/purpose-versions.modu
 import { NoticesModule } from '../notices/notices.module';
 
 @Module({
-  imports: [SubjectsModule, PurposesModule, PurposeVersionsModule, NoticesModule],
+  imports: [
+    SubjectsModule,
+    PurposesModule,
+    PurposeVersionsModule,
+    NoticesModule,
+    AuditModule,
+  ],
   controllers: [ConsentController],
   providers: [ConsentService],
   exports: [ConsentService],

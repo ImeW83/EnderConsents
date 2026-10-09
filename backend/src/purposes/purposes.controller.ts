@@ -13,6 +13,7 @@ import { PurposesService } from './purposes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { actorFrom } from '../audit/actor';
 
 @Controller('api/v1/purposes')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -29,13 +30,11 @@ export class PurposesController {
     @Body('category') category: string,
     @Body('isActive') isActive: boolean,
   ) {
-    return this.purposesService.create(req.user.organizationId, {
-      key,
-      name,
-      description,
-      category,
-      isActive,
-    });
+    return this.purposesService.create(
+      req.user.organizationId,
+      { key, name, description, category, isActive },
+      actorFrom(req),
+    );
   }
 
   @Get()
@@ -61,18 +60,21 @@ export class PurposesController {
     @Body('category') category: string,
     @Body('isActive') isActive: boolean,
   ) {
-    return this.purposesService.update(req.user.organizationId, id, {
-      key,
-      name,
-      description,
-      category,
-      isActive,
-    });
+    return this.purposesService.update(
+      req.user.organizationId,
+      id,
+      { key, name, description, category, isActive },
+      actorFrom(req),
+    );
   }
 
   @Delete(':id')
   @RequirePermissions('purpose:manage')
   async remove(@Request() req: any, @Param('id') id: string) {
-    return this.purposesService.remove(req.user.organizationId, id);
+    return this.purposesService.remove(
+      req.user.organizationId,
+      id,
+      actorFrom(req),
+    );
   }
 }

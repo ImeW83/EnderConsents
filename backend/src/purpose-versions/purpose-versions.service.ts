@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurposesService } from '../purposes/purposes.service';
+import { AuditService } from '../audit/audit.service';
+import { Actor, SYSTEM_ACTOR } from '../audit/actor';
 
 export interface CreatePurposeVersionInput {
   name: string;
@@ -14,9 +16,15 @@ export class PurposeVersionsService {
   constructor(
     private prisma: PrismaService,
     private purposesService: PurposesService,
+    private auditService: AuditService,
   ) {}
 
-  async create(organizationId: string, purposeId: string, data: CreatePurposeVersionInput) {
+  async create(
+    organizationId: string,
+    purposeId: string,
+    data: CreatePurposeVersionInput,
+    actor: Actor = SYSTEM_ACTOR,
+  ) {
     await this.purposesService.findOne(organizationId, purposeId);
 
     const latest = await this.prisma.purposeVersion.findFirst({
@@ -24,15 +32,29 @@ export class PurposeVersionsService {
       orderBy: { version: 'desc' },
     });
 
-    return this.prisma.purposeVersion.create({
-      data: {
-        purposeId,
-        version: (latest?.version ?? 0) + 1,
-        name: data.name,
-        description: data.description,
-        legalBasis: data.legalBasis,
-        effectiveFrom: data.effectiveFrom,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const version = await tx.purposeVersion.create({
+        data: {
+          purposeId,
+          version: (latest?.version ?? 0) + 1,
+          name: data.name,
+          description: data.description,
+          legalBasis: data.legalBasis,
+          effectiveFrom: data.effectiveFrom,
+        },
+      });
+
+      await this.auditService.record(
+        organizationId,
+        actor,
+        'created',
+        'PurposeVersion',
+        version.id,
+        JSON.stringify({ purposeId, version: version.version }),
+        tx,
+      );
+
+      return version;
     });
   }
 

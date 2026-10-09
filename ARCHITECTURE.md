@@ -167,7 +167,9 @@ Core endpoint groups:
 
 ## 7. Build Order
 
-**Phase 1 — Foundation (solo build)**
+**Phase 1 — Foundation (solo build)** — ✅ COMPLETE as of 2026-10-09.
+Every step reviewed line-by-line and verified against a running instance
+before merge; tenant isolation tested cross-org on every entity.
 1. ✅ Repository + architecture (this document)
 2. ✅ Database architecture
 3. ✅ Multi-tenancy
@@ -186,7 +188,12 @@ Core endpoint groups:
       subject-authenticated path is still needed
     - ipAddress / userAgent fields exist on ConsentEvent but aren't
       populated yet — needs wiring from the request in a future pass
-13. Immutable audit system
+13. ✅ Immutable audit system — AuditModule with append-only AuditRecord,
+    wired into every mutation across subjects, purposes, purpose versions,
+    notices, organizations, and consent (grant/withdraw/renew). Personal
+    data (subject email/phone) is deliberately excluded from audit detail
+    payloads — only field names are recorded, so an erasure request can't
+    leave personal data behind in an immutable log.
 
 **Phase 2 — Product (bring in help here)**
 14. Consent receipts

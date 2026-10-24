@@ -11,6 +11,7 @@ import { PurposeVersionsModule } from './purpose-versions/purpose-versions.modul
 import { NoticesModule } from './notices/notices.module';
 import { ConsentModule } from './consent/consent.module';
 import { AuditModule } from './audit/audit.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 
 @Module({
@@ -25,6 +26,7 @@ import { PermissionsGuard } from './auth/guards/permissions.guard';
     NoticesModule,
     ConsentModule,
     AuditModule,
+    ApiKeysModule,
   ],
   controllers: [AppController],
   providers: [AppService, PermissionsGuard],

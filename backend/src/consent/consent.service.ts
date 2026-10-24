@@ -298,6 +298,9 @@ export class ConsentService {
         actorType: event.actor.actorType,
         actorId: event.actor.actorId,
         channel: event.channel,
+        // Stored as evidence but not part of the event hash, so existing chains stay valid
+        ipAddress: event.actor.ipAddress ?? null,
+        userAgent: event.actor.userAgent ?? null,
         purposeVersionId: event.purposeVersionId,
         noticeVersionId: event.noticeVersionId,
         timestamp,

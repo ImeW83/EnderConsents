@@ -182,12 +182,11 @@ before merge; tenant isolation tested cross-org on every entity.
 10. ✅ Privacy notice versioning
 11. ✅ Consent state machine (merged with Step 12 — event creation is
     built into every grant/withdraw/renew transaction, not separate)
-12. ✅ Consent events — done as part of Step 11. Known gaps, not yet built:
-    - No subject-facing grant/withdraw endpoint — every current action is
-      actorType "admin" (an org user acting on someone's behalf); a public,
-      subject-authenticated path is still needed
-    - ipAddress / userAgent fields exist on ConsentEvent but aren't
-      populated yet — needs wiring from the request in a future pass
+12. ✅ Consent events — done as part of Step 11. Gaps closed in Step 15:
+    - Subject-facing path: API-key consent API records actorType "subject"
+    - ipAddress / userAgent now captured from the request (stored as
+      evidence, deliberately not part of the event hash so old chains stay
+      valid)
 13. ✅ Immutable audit system — AuditModule with append-only AuditRecord,
     wired into every mutation across subjects, purposes, purpose versions,
     notices, organizations, and consent (grant/withdraw/renew). Personal
@@ -201,7 +200,16 @@ before merge; tenant isolation tested cross-org on every entity.
     version, notice version, action, channel and event hash. No subject
     email/phone in the payload. Endpoints to read a receipt and to verify it
     (detects edits to the stored payload). Not backfilled for earlier events.
-15. Consent APIs
+15. ✅ Consent APIs — API keys (`X-API-Key`, SHA-256 hashed, shown once,
+    scoped consent:read / consent:write, revocable, managed via
+    `/api/v1/api-keys`) and `/api/v1/public/consent/{grant,withdraw,status,
+    events/:id/receipt}` for an organization's own backend. Resolves by
+    externalRef / purposeKey, auto-creates the subject on first grant. Known
+    limits: a subject's browser cannot call this directly (key would be
+    exposed) — needs short-lived subject tokens (preference centre / SDK
+    steps); recorded IP is the caller's, so behind a proxy or from an org
+    server it is not the end user's unless forwarding is added; no key
+    expiry or rate limiting yet (Step 26).
 16. Withdrawal APIs
 17. Webhooks/event system
 18. Admin dashboard

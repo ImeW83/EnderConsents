@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "ApiKey" ADD COLUMN     "keyPrefix" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "lastUsedAt" TIMESTAMP(3),
+ADD COLUMN     "name" TEXT NOT NULL DEFAULT '';

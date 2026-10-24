@@ -176,6 +176,7 @@ model ConsentState {
 
 model ConsentEvent {
   id                 String   @id @default(uuid())
+  seq                BigInt   @unique @default(autoincrement()) // global order, used as the pull-API cursor
   consentStateId     String
   consentState       ConsentState @relation(fields: [consentStateId], references: [id])
   action             String
@@ -191,6 +192,7 @@ model ConsentEvent {
   previousEventHash  String?
   eventHash          String
   timestamp          DateTime @default(now())
+  expiresAt          DateTime? // expiry in force after this event; not part of the event hash
 
   receipt ConsentReceipt?
 
@@ -247,7 +249,70 @@ model Webhook {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   url            String
-  events         String[]
-  secret         String
+  description    String   @default("")
+  events         String[] // event types, or "*" for all
+  secret         String   // needed in plaintext to sign payloads (HMAC), unlike API keys
+  previousSecret          String?   // still accepted during a rotation grace period
+  previousSecretExpiresAt DateTime?
   isActive       Boolean  @default(true)
+  disabledReason String?
+  consecutiveFailures Int @default(0)
+  createdAt      DateTime @default(now())
+
+  deliveries WebhookDelivery[]
+}
+
+// Transactional outbox: written in the same transaction as the consent event
+// it describes, so a notification can never be lost between "saved" and "queued"
+model WebhookDelivery {
+  id             String   @id @default(uuid())
+  webhookId      String
+  webhook        Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  organizationId String
+  eventType      String
+  eventId        String?  // ConsentEvent id; null for test deliveries
+  payload        Json
+  status         String   @default("pending") // pending | delivered | failed
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  lockedUntil    DateTime?
+  lastStatusCode Int?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  deliveredAt    DateTime?
+
+  attemptLog WebhookAttempt[]
+
+  @@unique([webhookId, eventId])
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+}
+
+model WebhookAttempt {
+  id            String   @id @default(uuid())
+  deliveryId    String
+  delivery      WebhookDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  attemptNumber Int
+  statusCode    Int?
+  error         String?
+  durationMs    Int
+  createdAt     DateTime @default(now())
+
+  @@index([deliveryId, createdAt])
+}
+
+// Lets API clients safely retry a POST: same key + same request replays the
+// original response instead of repeating the action
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  organizationId String
+  key            String
+  requestHash    String
+  status         String   @default("in_progress") // in_progress | completed
+  responseStatus Int?
+  responseBody   Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, key])
+  @@index([createdAt])
 }

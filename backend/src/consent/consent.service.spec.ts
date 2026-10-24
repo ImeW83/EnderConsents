@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConsentService } from './consent.service';
 import { AuditService } from '../audit/audit.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubjectsService } from '../subjects/subjects.service';
 import { PurposesService } from '../purposes/purposes.service';
@@ -15,6 +16,7 @@ describe('ConsentService', () => {
       providers: [
         ConsentService,
         { provide: AuditService, useValue: { record: jest.fn() } },
+        { provide: WebhooksService, useValue: { enqueueForEvent: jest.fn() } },
         {
           provide: PrismaService,
           useValue: { $transaction: jest.fn(), consentState: {} },

@@ -11,7 +11,8 @@ import { PurposesService } from '../purposes/purposes.service';
 import { PurposeVersionsService } from '../purpose-versions/purpose-versions.service';
 import { NoticesService } from '../notices/notices.service';
 import { AuditService } from '../audit/audit.service';
-import { Actor } from '../audit/actor';
+import { WebhooksService } from '../webhooks/webhooks.service';
+import { Actor, SYSTEM_ACTOR } from '../audit/actor';
 import { computeEventHash } from './event-hash';
 import { computeReceiptHash, ConsentReceiptPayload } from './receipt-hash';
 
@@ -45,6 +46,7 @@ export class ConsentService {
     private purposeVersionsService: PurposeVersionsService,
     private noticesService: NoticesService,
     private auditService: AuditService,
+    private webhooksService: WebhooksService,
   ) {}
 
   async grant(organizationId: string, actor: Actor, input: GrantConsentInput) {
@@ -99,6 +101,7 @@ export class ConsentService {
         channel: input.channel,
         purposeVersionId,
         noticeVersionId,
+        expiresAt: state.expiresAt,
       });
 
       await this.auditService.record(
@@ -149,6 +152,7 @@ export class ConsentService {
         channel: input.channel,
         purposeVersionId: current.purposeVersionId,
         noticeVersionId: current.noticeVersionId,
+        expiresAt: null,
       });
 
       await this.auditService.record(
@@ -195,6 +199,7 @@ export class ConsentService {
         channel: input.channel,
         purposeVersionId: current.purposeVersionId,
         noticeVersionId: current.noticeVersionId,
+        expiresAt: state.expiresAt,
       });
 
       await this.auditService.record(
@@ -208,6 +213,50 @@ export class ConsentService {
           channel: input.channel,
           expiresAt: state.expiresAt?.toISOString() ?? null,
         }),
+        tx,
+      );
+
+      return { state, event };
+    });
+  }
+
+  // Records that a consent has lapsed. Run by the scheduled expiry job, which
+  // is what makes expiry an auditable event rather than a date nobody acts on.
+  // Returns null if the consent is no longer due (renewed or withdrawn meanwhile).
+  async expire(organizationId: string, consentStateId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockState(tx, organizationId, consentStateId);
+
+      if (
+        current.status !== 'granted' ||
+        !current.expiresAt ||
+        current.expiresAt > new Date()
+      ) {
+        return null;
+      }
+
+      const state = await tx.consentState.update({
+        where: { id: consentStateId },
+        data: { status: 'expired' },
+      });
+
+      const event = await this.recordEvent(tx, {
+        consentStateId,
+        action: 'expired',
+        actor: SYSTEM_ACTOR,
+        channel: 'system',
+        purposeVersionId: current.purposeVersionId,
+        noticeVersionId: current.noticeVersionId,
+        expiresAt: current.expiresAt,
+      });
+
+      await this.auditService.record(
+        organizationId,
+        SYSTEM_ACTOR,
+        'consent_expired',
+        'ConsentState',
+        consentStateId,
+        JSON.stringify({ eventId: event.id }),
         tx,
       );
 
@@ -301,6 +350,7 @@ export class ConsentService {
       channel: string;
       purposeVersionId: string | null;
       noticeVersionId: string | null;
+      expiresAt: Date | null;
     },
   ) {
     const previous = await tx.consentEvent.findFirst({
@@ -334,6 +384,7 @@ export class ConsentService {
         // Stored as evidence but not part of the event hash, so existing chains stay valid
         ipAddress: event.actor.ipAddress ?? null,
         userAgent: event.actor.userAgent ?? null,
+        expiresAt: event.expiresAt,
         purposeVersionId: event.purposeVersionId,
         noticeVersionId: event.noticeVersionId,
         timestamp,
@@ -343,6 +394,8 @@ export class ConsentService {
     });
 
     await this.issueReceipt(tx, created);
+    // Same transaction: a committed event always has its webhook deliveries queued
+    await this.webhooksService.enqueueForEvent(tx, created.id);
 
     return created;
   }

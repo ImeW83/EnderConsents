@@ -217,7 +217,33 @@ before merge; tenant isolation tested cross-org on every entity.
     repeat. Not atomic across purposes: a failure part-way keeps the earlier
     withdrawals; retrying completes the rest. No free-text withdrawal reason
     stored yet. Downstream notification of withdrawals is Step 17 (webhooks).
-17. Webhooks/event system
+17. ✅ Webhooks/event system — full detail in `backend/docs/WEBHOOKS.md`.
+    - Transactional outbox: deliveries are written in the same transaction as
+      the consent event, so a committed event always has its notifications
+      queued. Postgres is the source of truth; BullMQ/Redis only supplies
+      concurrency, and Redis loss costs nothing (verified).
+    - Separate worker process (`npm run start:worker`): API latency is isolated
+      from customer endpoints. Capture keeps working with the worker down.
+    - HMAC-SHA256 signed, timestamped, replay-protected; per-attempt signing;
+      secret rotation with a grace period (two signatures during overlap).
+    - Retries over ~21h, full per-attempt log, redeliver / retry-now, test
+      ping, automatic disable after 30 consecutive failures (audited).
+    - SSRF protection checked at save time and again at connect time.
+    - `consent.expired`: scheduled job records a real expiry event (hash
+      chain, receipt, audit, webhook). Self-heals if Redis is wiped.
+    - Pull API (`/events`, `/public/events`): cursor feed so a receiver can
+      resync after downtime. Events < 5s old are held back to avoid skips.
+    - Idempotency keys on `POST /public/consent/*`: replay, 422 on mismatch,
+      409 in flight, 24h retention.
+    - Payloads are point-in-time and identical between push and pull; no
+      subject email/phone ever leaves in a payload.
+    Known limits: webhook signing secrets are stored in plaintext (HMAC needs
+    them; encrypt at rest in Step 26); no per-webhook rate limiting or
+    delivery-failure alert email yet (disable is audited, nothing is emailed);
+    admin (JWT) consent endpoints do not accept Idempotency-Key; ordering is
+    not guaranteed; expiry runs every ~60s, so a consent can be up to a minute
+    past its expiry date before the event fires (public status already
+    reports `expired` immediately).
 18. Admin dashboard
 19. Preference centre
 20. Web SDK

@@ -7,7 +7,9 @@ import {
   Query,
   Request,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { ConsentService } from './consent.service';
 import { PublicConsentService } from './public-consent.service';
 import type {
@@ -19,6 +21,7 @@ import { RequireScopes } from '../auth/decorators/scopes.decorator';
 
 @Controller('api/v1/public/consent')
 @UseGuards(ApiKeyGuard)
+@UseInterceptors(IdempotencyInterceptor) // only acts when an Idempotency-Key header is sent
 export class PublicConsentController {
   constructor(
     private publicConsentService: PublicConsentService,

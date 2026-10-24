@@ -4,6 +4,8 @@ import { ConsentService } from './consent.service';
 import { ConsentController } from './consent.controller';
 import { PublicConsentController } from './public-consent.controller';
 import { PublicConsentService } from './public-consent.service';
+import { WebhooksModule } from '../webhooks/webhooks.module';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { SubjectsModule } from '../subjects/subjects.module';
 import { PurposesModule } from '../purposes/purposes.module';
@@ -17,9 +19,15 @@ import { NoticesModule } from '../notices/notices.module';
     PurposeVersionsModule,
     NoticesModule,
     AuditModule,
+    WebhooksModule,
   ],
   controllers: [ConsentController, PublicConsentController],
-  providers: [ConsentService, PublicConsentService, ApiKeyGuard],
+  providers: [
+    ConsentService,
+    PublicConsentService,
+    ApiKeyGuard,
+    IdempotencyInterceptor,
+  ],
   exports: [ConsentService],
 })
 export class ConsentModule {}

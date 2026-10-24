@@ -12,6 +12,8 @@ import { NoticesModule } from './notices/notices.module';
 import { ConsentModule } from './consent/consent.module';
 import { AuditModule } from './audit/audit.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
+import { EventsModule } from './events/events.module';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 
 @Module({
@@ -27,6 +29,8 @@ import { PermissionsGuard } from './auth/guards/permissions.guard';
     ConsentModule,
     AuditModule,
     ApiKeysModule,
+    WebhooksModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PermissionsGuard],

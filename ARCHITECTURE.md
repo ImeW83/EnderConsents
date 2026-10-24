@@ -210,7 +210,13 @@ before merge; tenant isolation tested cross-org on every entity.
     steps); recorded IP is the caller's, so behind a proxy or from an org
     server it is not the end user's unless forwarding is added; no key
     expiry or rate limiting yet (Step 26).
-16. Withdrawal APIs
+16. ✅ Withdrawal APIs — single withdrawal already existed from Steps 11 and 15
+    (admin and public). Added withdraw-all for a subject
+    (`POST /api/v1/consent/withdraw-all`, `POST /api/v1/public/consent/withdraw-all`):
+    withdraws every granted consent, one event and receipt each, safe to
+    repeat. Not atomic across purposes: a failure part-way keeps the earlier
+    withdrawals; retrying completes the rest. No free-text withdrawal reason
+    stored yet. Downstream notification of withdrawals is Step 17 (webhooks).
 17. Webhooks/event system
 18. Admin dashboard
 19. Preference centre

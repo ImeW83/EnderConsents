@@ -45,6 +45,19 @@ export class PublicConsentController {
     );
   }
 
+  @Post('withdraw-all')
+  @RequireScopes('consent:write')
+  async withdrawAll(
+    @Request() req: any,
+    @Body() body: { subjectId?: string; externalRef?: string; channel?: string },
+  ) {
+    return this.publicConsentService.withdrawAll(
+      req.apiKey.organizationId,
+      req,
+      body,
+    );
+  }
+
   @Get('status')
   @RequireScopes('consent:read')
   async status(

@@ -215,6 +215,39 @@ export class ConsentService {
     });
   }
 
+  // Withdraws every granted consent for a subject. Each withdrawal is its own
+  // transaction with its own event and receipt, so a failure part-way leaves
+  // earlier ones in place; repeating the call finishes the rest.
+  async withdrawAll(
+    organizationId: string,
+    actor: Actor,
+    subjectId: string,
+    input: WithdrawConsentInput,
+  ) {
+    this.requireFields(input, ['channel']);
+    await this.subjectsService.findOne(organizationId, subjectId);
+
+    const granted = await this.prisma.consentState.findMany({
+      where: { organizationId, subjectId, status: 'granted' },
+      select: { id: true },
+    });
+
+    const withdrawn: { consentStateId: string; eventId: string }[] = [];
+    for (const { id } of granted) {
+      try {
+        const { event } = await this.withdraw(organizationId, actor, id, input);
+        withdrawn.push({ consentStateId: id, eventId: event.id });
+      } catch (error) {
+        // Withdrawn concurrently by someone else: the outcome we wanted
+        if (!(error instanceof ConflictException)) {
+          throw error;
+        }
+      }
+    }
+
+    return { subjectId, withdrawn };
+  }
+
   async findBySubject(organizationId: string, subjectId: string) {
     if (!subjectId) {
       throw new BadRequestException('subjectId is required');

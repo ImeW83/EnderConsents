@@ -97,6 +97,21 @@ export class PublicConsentService {
     );
   }
 
+  async withdrawAll(
+    organizationId: string,
+    req: any,
+    input: SubjectRef & { channel?: string },
+  ) {
+    const subject = await this.requireSubject(organizationId, input);
+
+    return this.consentService.withdrawAll(
+      organizationId,
+      subjectActorFrom(req, subject.id),
+      subject.id,
+      { channel: input.channel ?? DEFAULT_CHANNEL },
+    );
+  }
+
   async status(organizationId: string, ref: SubjectRef) {
     const subject = await this.requireSubject(organizationId, ref);
 

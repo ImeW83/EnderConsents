@@ -38,6 +38,21 @@ export class ConsentController {
     });
   }
 
+  @Post('withdraw-all')
+  @RequirePermissions('consent:write')
+  async withdrawAll(
+    @Request() req: any,
+    @Body('subjectId') subjectId: string,
+    @Body('channel') channel: string,
+  ) {
+    return this.consentService.withdrawAll(
+      req.user.organizationId,
+      actorFrom(req),
+      subjectId,
+      { channel },
+    );
+  }
+
   @Post(':consentStateId/withdraw')
   @RequirePermissions('consent:write')
   async withdraw(

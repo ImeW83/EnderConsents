@@ -196,7 +196,11 @@ before merge; tenant isolation tested cross-org on every entity.
     leave personal data behind in an immutable log.
 
 **Phase 2 — Product (bring in help here)**
-14. Consent receipts
+14. ✅ Consent receipts — one ConsentReceipt issued in the same transaction as
+    every grant/withdraw/renew event: a SHA-256-hashed snapshot of purpose
+    version, notice version, action, channel and event hash. No subject
+    email/phone in the payload. Endpoints to read a receipt and to verify it
+    (detects edits to the stored payload). Not backfilled for earlier events.
 15. Consent APIs
 16. Withdrawal APIs
 17. Webhooks/event system

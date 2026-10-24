@@ -13,6 +13,7 @@ import { NoticesService } from '../notices/notices.service';
 import { AuditService } from '../audit/audit.service';
 import { Actor } from '../audit/actor';
 import { computeEventHash } from './event-hash';
+import { computeReceiptHash, ConsentReceiptPayload } from './receipt-hash';
 
 export interface GrantConsentInput {
   subjectId: string;
@@ -290,7 +291,7 @@ export class ConsentService {
       timestamp,
     });
 
-    return tx.consentEvent.create({
+    const created = await tx.consentEvent.create({
       data: {
         consentStateId: event.consentStateId,
         action: event.action,
@@ -304,6 +305,119 @@ export class ConsentService {
         eventHash,
       },
     });
+
+    await this.issueReceipt(tx, created);
+
+    return created;
+  }
+
+  // Snapshots what was agreed to at event time. Subject email/phone are
+  // deliberately left out so an erasure request is never blocked by a receipt.
+  private async issueReceipt(
+    tx: Prisma.TransactionClient,
+    event: {
+      id: string;
+      consentStateId: string;
+      action: string;
+      channel: string;
+      purposeVersionId: string | null;
+      noticeVersionId: string | null;
+      eventHash: string;
+      timestamp: Date;
+    },
+  ) {
+    const state = await tx.consentState.findUniqueOrThrow({
+      where: { id: event.consentStateId },
+      include: { purpose: true },
+    });
+    const purposeVersion = event.purposeVersionId
+      ? await tx.purposeVersion.findUnique({
+          where: { id: event.purposeVersionId },
+        })
+      : null;
+    const notice = event.noticeVersionId
+      ? await tx.noticeVersion.findUnique({
+          where: { id: event.noticeVersionId },
+        })
+      : null;
+
+    const payload: ConsentReceiptPayload = {
+      receiptVersion: 1,
+      organizationId: state.organizationId,
+      subjectId: state.subjectId,
+      consentStateId: state.id,
+      eventId: event.id,
+      eventHash: event.eventHash,
+      action: event.action,
+      channel: event.channel,
+      timestamp: event.timestamp.toISOString(),
+      purpose: {
+        id: state.purpose.id,
+        key: state.purpose.key,
+        versionId: purposeVersion?.id ?? null,
+        version: purposeVersion?.version ?? null,
+        name: purposeVersion?.name ?? state.purpose.name,
+        description: purposeVersion?.description ?? state.purpose.description,
+        legalBasis: purposeVersion?.legalBasis ?? null,
+      },
+      notice: notice
+        ? {
+            versionId: notice.id,
+            version: notice.version,
+            language: notice.language,
+          }
+        : null,
+    };
+
+    return tx.consentReceipt.create({
+      data: {
+        consentEventId: event.id,
+        receiptHash: computeReceiptHash(payload),
+        payload: payload as unknown as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async findReceipt(organizationId: string, eventId: string) {
+    const receipt = await this.prisma.consentReceipt.findFirst({
+      where: {
+        consentEventId: eventId,
+        consentEvent: { consentState: { organizationId } },
+      },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('Receipt not found');
+    }
+
+    return receipt;
+  }
+
+  async findReceiptsForState(organizationId: string, consentStateId: string) {
+    await this.findOne(organizationId, consentStateId);
+
+    return this.prisma.consentReceipt.findMany({
+      where: { consentEvent: { consentStateId } },
+      orderBy: { issuedAt: 'asc' },
+    });
+  }
+
+  async verifyReceipt(organizationId: string, eventId: string) {
+    const receipt = await this.findReceipt(organizationId, eventId);
+    const payload = receipt.payload as unknown as ConsentReceiptPayload;
+    const event = await this.prisma.consentEvent.findUniqueOrThrow({
+      where: { id: eventId },
+    });
+
+    const hashMatches = computeReceiptHash(payload) === receipt.receiptHash;
+    const eventMatches = payload.eventHash === event.eventHash;
+
+    return {
+      receiptId: receipt.id,
+      valid: hashMatches && eventMatches,
+      hashMatches,
+      eventMatches,
+    };
   }
 
   private async resolvePurposeVersionId(

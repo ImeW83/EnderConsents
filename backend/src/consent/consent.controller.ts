@@ -85,6 +85,30 @@ export class ConsentController {
     );
   }
 
+  @Get('events/:eventId/receipt')
+  @RequirePermissions('consent:read')
+  async findReceipt(@Request() req: any, @Param('eventId') eventId: string) {
+    return this.consentService.findReceipt(req.user.organizationId, eventId);
+  }
+
+  @Get('events/:eventId/receipt/verify')
+  @RequirePermissions('consent:read')
+  async verifyReceipt(@Request() req: any, @Param('eventId') eventId: string) {
+    return this.consentService.verifyReceipt(req.user.organizationId, eventId);
+  }
+
+  @Get(':consentStateId/receipts')
+  @RequirePermissions('consent:read')
+  async findReceipts(
+    @Request() req: any,
+    @Param('consentStateId') consentStateId: string,
+  ) {
+    return this.consentService.findReceiptsForState(
+      req.user.organizationId,
+      consentStateId,
+    );
+  }
+
   @Get(':consentStateId')
   @RequirePermissions('consent:read')
   async findOne(
